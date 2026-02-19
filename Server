@@ -1,0 +1,436 @@
+local selection = game:GetService("Selection")
+local screenGui = script.Parent
+local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
+local RunService = game:GetService("RunService")
+local starterGui = game:GetService("StarterGui")
+local guiService = game:GetService("GuiService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local players = game:GetService("Players")
+local player = players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local initialRE = ReplicatedStorage:WaitForChild("initialRE")
+local REPlacementSystem = ReplicatedStorage:WaitForChild("REPlacementSystem")
+local REPlacementSystem2 = ReplicatedStorage:WaitForChild("REPlacementSystem2")
+local selectFrame = screenGui:WaitForChild("selectFrame")
+local buildFrame = screenGui:WaitForChild("buildFrame")
+local selectionBoxFrm = screenGui:WaitForChild("selectionBoxFrame")
+local selectButton = selectFrame.selectButton
+local buildButton = buildFrame.buildButton
+local gift = ReplicatedStorage:FindFirstChild("Lua Gift")
+selectionBoxFrm.Visible = false
+local isPlaced = false
+local hasCollisions = false
+local hasCollisions2 = false
+local shrinkGift, enlargeGift = false, false
+local arePartsSelected = false
+local holdingDownClick = false
+local enableDraggingSystem = false
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+local overlapParams = OverlapParams.new()
+overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+local giftCFrame = CFrame.identity
+local giftCFrames2 = {}
+local OBBPart : BasePart
+local newGift, newHighlight
+local previousLocation
+local activated, heartbeatConnection
+local AGSConnection
+local draggingConnection
+local tblOfGifts = {}
+local tblGiftsObjSpace = {}
+local tblGiftsCFStore = {}
+local OBBPartCFStore = {}
+local highlightTbl = {}
+local giftRescaled = 1
+local OBBFolder = Instance.new("Folder")
+OBBFolder.Name = "OBBSelectionFolder"
+OBBFolder.Parent = workspace
+initialRE:FireServer()
+local giftFolder = workspace:WaitForChild("giftFolder"..player.Name)
+
+local function createNewGift()
+	local newGift = gift:Clone()
+	local handle = newGift.Handle
+	newGift.Parent = workspace
+	newGift.Name = ""
+	handle.Name = ""
+	handle.Anchored = true
+	handle.CanCollide = false
+	handle.Transparency = .65
+	handle.Reflectance = -math.huge
+	handle.Material = Enum.Material.Glass
+	local newHighlight = Instance.new("Highlight")
+	newHighlight.Parent = handle
+	newHighlight.Adornee = handle
+	newHighlight.FillTransparency = 1
+	newHighlight.OutlineTransparency = 0
+	newHighlight.Enabled = true
+	return handle, newHighlight
+end
+
+local function OverlappingBoundingBoxes(orientation, giftsTbl : {Instance?}) : (Vector3, CFrame)
+	local corners = {}
+	orientation = orientation.Rotation
+	for index, gift in ipairs(giftsTbl) do
+		gift = gift:FindFirstChild("Handle")
+		local vertices = {
+			vertex1 = gift.CFrame:PointToWorldSpace(Vector3.new(gift.Size.X/2, gift.Size.Y/2 * -1, gift.Size.Z/2 * -1)), vertex2 = gift.CFrame:PointToWorldSpace(Vector3.new(gift.Size.X/2 * -1, gift.Size.Y/2, gift.Size.Z/2 * -1)),
+			vertex3 = gift.CFrame:PointToWorldSpace(Vector3.new(gift.Size.X/2 * -1, gift.Size.Y/2 * -1, gift.Size.Z/2)), vertex4 = gift.CFrame:PointToWorldSpace(Vector3.new(gift.Size.X/2, gift.Size.Y/2, gift.Size.Z/2)),
+			vertex5 = gift.CFrame:PointToWorldSpace(Vector3.new(gift.Size.X/2 * -1, gift.Size.Y/2, gift.Size.Z/2)), vertex6 = gift.CFrame:PointToWorldSpace(Vector3.new(gift.Size.X/2, gift.Size.Y/2 * -1, gift.Size.Z/2)),
+			vertex7 = gift.CFrame:PointToWorldSpace(Vector3.new(gift.Size.X/2, gift.Size.Y/2, gift.Size.Z/2 * -1)), vertex8 = gift.CFrame:PointToWorldSpace(Vector3.new(gift.Size.X/2 * -1, gift.Size.Y/2 * -1, gift.Size.Z/2 * -1))	
+		}
+		for index, vertex in pairs(vertices) do
+			table.insert(corners, vertex);
+		end
+	end
+	for i = 1, #corners do
+		corners[i] = orientation:PointToObjectSpace(corners[i])
+	end
+	local OBBMin = Vector3.new(math.huge, math.huge, math.huge);
+	local OBBMax = Vector3.new(-math.huge, -math.huge, -math.huge);	
+	for index, corner in corners do
+		OBBMax = OBBMax:Max(corner);
+		OBBMin = OBBMin:Min(corner);
+	end
+	local giftCF = CFrame.new((orientation:PointToWorldSpace(OBBMax) + orientation:PointToWorldSpace(OBBMin))/2) * orientation;
+	local giftSize = OBBMax - OBBMin;
+	return giftSize, giftCF
+end
+
+local function CrossProductNormalSurfaces(gift : BasePart, raycast : RaycastResult) : (CFrame)
+	local upVector = Vector3.new(0,1,0);
+	if raycast.Instance and raycast.Instance:IsA("BasePart") then
+		local raycastCFrame = raycast.Instance.CFrame;
+		upVector = raycastCFrame.UpVector ~= raycast.Normal and raycastCFrame.UpVector or raycastCFrame.RightVector;
+	end
+	local rightVector = raycast.Normal:Cross(upVector);
+	local lookVector = rightVector:Cross(raycast.Normal);
+	local newCFrame = CFrame.fromMatrix(raycast.Position + (raycast.Normal * gift.Size.Y * .5), rightVector, raycast.Normal, lookVector);
+	return newCFrame :: CFrame
+end
+
+local function placingGift(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin and UserInputService:IsKeyDown(Enum.KeyCode.P) then
+		if not isPlaced and giftCFrame and giftRescaled then
+			isPlaced = not isPlaced
+			REPlacementSystem:FireServer(giftCFrame, hasCollisions, giftRescaled)
+			task.wait()
+			isPlaced = not isPlaced
+		end
+	end
+end
+
+local function hearbeatSelectionBox()
+	if holdingDownClick then
+		local currentLocation = UserInputService:GetMouseLocation()
+		local previousLocation = previousLocation + guiService:GetGuiInset()
+		local center = ((previousLocation + currentLocation) * .5) - guiService:GetGuiInset()
+		local distanceX = math.abs(previousLocation.X - currentLocation.X)  
+		local distanceY = math.abs(previousLocation.Y - currentLocation.Y) 
+		selectionBoxFrm.Position = UDim2.new(0, center.X, 0, center.Y)
+		selectionBoxFrm.Size =  UDim2.new(0, distanceX, 0, distanceY)
+		selectionBoxFrm.Visible = true
+	end
+end
+
+local function placementBindToRenderStep()
+	local mouseLocation = UserInputService:GetMouseLocation()
+	local mouseRay = Camera:ViewportPointToRay(mouseLocation.X, mouseLocation.Y)
+	local raycast = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * (1 * 10 ^ 6), raycastParams)
+	if raycast and raycast.Instance then
+		overlapParams.FilterDescendantsInstances = {newGift}
+		raycastParams.FilterDescendantsInstances = {newGift}
+		local region3 = workspace:GetPartBoundsInBox(newGift.CFrame, newGift.Size, overlapParams)
+		if #region3 > 1 then
+			hasCollisions = true
+			newHighlight.OutlineColor = Color3.new(1,0,0)
+		else
+			hasCollisions = false
+			newHighlight.OutlineColor = Color3.new(0,1,0)
+		end
+		local newCFrame = CrossProductNormalSurfaces(newGift, raycast)
+		newGift.CFrame = newCFrame
+		giftCFrame = newCFrame
+		task.wait()
+		if shrinkGift then
+			newGift.Parent:ScaleTo(giftRescaled - .05)
+		elseif enlargeGift then
+			newGift.Parent:ScaleTo(giftRescaled + .05)
+		end
+		giftRescaled = math.clamp(newGift.Parent:GetScale(), .25, 4)
+	end
+end
+
+local function isOverlapping(cf : CFrame, vec0 : Vector2, vec1 : Vector2) : boolean
+	local CFrameObjectSpaceX, CFrameObjectSpaceY = Camera.CFrame:ToObjectSpace(cf).X / -Camera.CFrame:ToObjectSpace(cf).Z, Camera.CFrame:ToObjectSpace(cf).Y / -Camera.CFrame:ToObjectSpace(cf).Z
+	return (vec0.X) < CFrameObjectSpaceX and CFrameObjectSpaceX < (vec1.X) and (vec0.Y < CFrameObjectSpaceY and CFrameObjectSpaceY < vec1.Y) and Camera.CFrame:ToObjectSpace(cf).Z < 0 :: boolean
+end
+
+local function Switch(vec0, vec1) : (Vector2, Vector2)
+	local min0, min1 = math.min(vec0.X, vec1.X), math.min(vec0.Y, vec1.Y)
+	local max0, max1 = math.max(vec0.X, vec1.X), math.max(vec0.Y, vec1.Y)
+	return Vector2.new(min0, min1) :: Vector2, Vector2.new(max0, max1) :: Vector2
+end
+
+local function Select(gifts : {Instance}, vec0 : Vector3, vec1 : Vector3) : {Instance}
+	local newTbl = {}
+	local loc0 = Vector2.new(Camera.CFrame:PointToObjectSpace(vec0).X/-Camera.CFrame:PointToObjectSpace(vec0).Z,Camera.CFrame:PointToObjectSpace(vec0).Y/-Camera.CFrame:PointToObjectSpace(vec0).Z)
+	local loc1 = Vector2.new(Camera.CFrame:PointToObjectSpace(vec1).X/-Camera.CFrame:PointToObjectSpace(vec1).Z,Camera.CFrame:PointToObjectSpace(vec1).Y/-Camera.CFrame:PointToObjectSpace(vec1).Z)
+	loc0, loc1 = Switch(loc0, loc1)
+	for _, gift in ipairs(gifts) do
+		local cf = gift:IsA("Model") and gift:GetBoundingBox() or gift.CFrame
+		if isOverlapping(cf, loc0, loc1) then
+			table.insert(newTbl, gift)
+		end
+	end
+	return newTbl :: {Instance}
+end
+
+local function adjustGiftSize(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		if UserInputService:IsKeyDown(Enum.KeyCode.Up) then
+			enlargeGift = true
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Down) then
+			shrinkGift = true	
+		end
+	end
+	if inputState == Enum.UserInputState.End then
+		enlargeGift = false
+		shrinkGift = false
+	end
+end
+
+local function createOBB(folder)
+	local OBBPart = Instance.new("Part")
+	OBBPart.Name = "OBBPart"
+	OBBPart.Parent = folder
+	OBBPart.Anchored = true
+	OBBPart.Transparency = .65
+	OBBPart.CanCollide = false
+	OBBPart.TopSurface = Enum.SurfaceType.Smooth
+	OBBPart.BottomSurface = Enum.SurfaceType.Smooth
+	return OBBPart
+end
+
+local function createHighlights(giftsTbl)
+	local highlightsTbl = {}
+	for _, gift in ipairs(giftsTbl) do
+		local newHighlight = Instance.new("Highlight")
+		newHighlight.Parent = gift:FindFirstChild("Handle")
+		newHighlight.Adornee = gift:FindFirstChild("Handle")
+		gift:FindFirstChild("Handle").CanCollide = false
+		gift:FindFirstChild("Handle").Transparency = .65
+		gift:FindFirstChild("Handle").Reflectance = -math.huge
+		gift:FindFirstChild("Handle").Material = Enum.Material.Glass
+		newHighlight.FillTransparency = 1
+		newHighlight.OutlineTransparency = 0
+		newHighlight.Enabled = true
+		table.insert(highlightsTbl, newHighlight)
+	end
+	return highlightsTbl
+end
+
+local function draggingGifts(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		if UserInputService:IsKeyDown(Enum.KeyCode.H) then
+			if not enableDraggingSystem then
+				local function draggingRenderStep()
+					if arePartsSelected then
+						local mouseLocation = UserInputService:GetMouseLocation()
+						local mouseRay = Camera:ViewportPointToRay(mouseLocation.X, mouseLocation.Y)
+						local raycast = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * (1 * 10 ^ 6), raycastParams)
+						if raycast then
+							local paramsTbl = {OBBPart}
+							for _, gift in ipairs(tblOfGifts) do
+								table.insert(paramsTbl, gift)
+							end
+							raycastParams.FilterDescendantsInstances = paramsTbl
+							overlapParams.FilterDescendantsInstances = paramsTbl
+							local region3 = workspace:GetPartBoundsInBox(OBBPart.CFrame, OBBPart.Size, overlapParams)
+							if #region3 > 1 then
+								for _, highlight in highlightTbl do
+									hasCollisions2 = true
+									highlight.OutlineColor = Color3.new(1,0,0)
+								end
+							else
+								for _, highlight in highlightTbl do
+									hasCollisions2 = false
+									highlight.OutlineColor = Color3.new(0,1,0)
+								end
+							end
+							local OBBPartCFrame = CrossProductNormalSurfaces(OBBPart, raycast)
+							OBBPart.CFrame = OBBPartCFrame
+							for i, gift in ipairs(tblOfGifts) do
+								gift = gift:FindFirstChild("Handle")
+								gift.CFrame = OBBPart.CFrame * tblGiftsObjSpace[i]
+							end
+							giftCFrames2 = {}
+							for i, gift in ipairs(tblOfGifts) do
+								gift = gift:FindFirstChild("Handle")
+								table.insert(giftCFrames2, gift.CFrame)
+							end
+						end
+					end
+				end
+				draggingConnection = RunService:BindToRenderStep("DBRS", Enum.RenderPriority.Camera.Value, draggingRenderStep)
+			else
+				RunService:UnbindFromRenderStep("DBRS")
+				if highlightTbl then
+					for _, highlight in highlightTbl do
+						highlight:Destroy()
+						highlight = nil
+					end
+				end
+				if tblOfGifts then
+					for _, gift in ipairs(tblOfGifts) do
+						gift:FindFirstChild("Handle").CanCollide = true
+						gift:FindFirstChild("Handle").Transparency = 0
+						gift:FindFirstChild("Handle").Reflectance = 0
+						gift:FindFirstChild("Handle").Material = Enum.Material.Plastic
+					end
+				end
+				highlightTbl = {}
+				if not hasCollisions2 then
+					if not isPlaced then
+						isPlaced = not isPlaced
+						REPlacementSystem2:FireServer(tblOfGifts, giftCFrames2, hasCollisions2)
+						task.wait()
+						isPlaced = not isPlaced
+					end
+				else
+					OBBPart.CFrame = OBBPartCFStore
+					for i, gift in ipairs(tblOfGifts) do
+						gift:FindFirstChild("Handle").CFrame = tblGiftsCFStore[i]
+					end
+				end
+				OBBPart.Size = Vector3.zero
+				enableDraggingSystem = false
+			end
+		end
+		enableDraggingSystem = not enableDraggingSystem
+	end
+end
+
+local function selectionBox(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		if inputObject.UserInputType == Enum.UserInputType.MouseButton1 then
+			RunService:UnbindFromRenderStep("DBRS")
+			enableDraggingSystem = false
+			if highlightTbl then
+				for _, highlight in highlightTbl do
+					highlight:Destroy()
+					highlight = nil
+				end
+			end
+			if tblOfGifts then
+				for _, gift in ipairs(tblOfGifts) do
+					gift:FindFirstChild("Handle").CanCollide = true
+					gift:FindFirstChild("Handle").Transparency = 0
+					gift:FindFirstChild("Handle").Reflectance = 0
+					gift:FindFirstChild("Handle").Material = Enum.Material.Plastic
+				end
+			end
+			highlightTbl = {}
+			OBBPart.Size = Vector3.zero
+			holdingDownClick = true
+			arePartsSelected = false
+			previousLocation = Vector2.new(inputObject.Position.X, inputObject.Position.Y)
+		end
+	end
+	if inputState == Enum.UserInputState.End then
+		if inputObject.UserInputType == Enum.UserInputType.MouseButton1 then	
+			local unitRay0 =  Camera:ScreenPointToRay(previousLocation.X, previousLocation.Y)
+			local result0 = workspace:Raycast(unitRay0.Origin, unitRay0.Direction * 1000)
+			local currentLocation = Vector2.new(inputObject.Position.X, inputObject.Position.Y)
+			local unitRay1 =  Camera:ScreenPointToRay(currentLocation.X, currentLocation.Y)
+			local result1 = workspace:Raycast(unitRay1.Origin, unitRay1.Direction * 1000)
+			if result0 and result1 then
+				local tbl = Select(giftFolder:GetChildren(), result0.Position, result1.Position)
+				local OBBPartSize, OBBPartCFrame = OverlappingBoundingBoxes(OBBPart.CFrame-OBBPart.CFrame.Position, tbl)
+				OBBPart.Size = OBBPartSize
+				OBBPart.CFrame = OBBPartCFrame
+				if #tbl > 0 then
+					arePartsSelected = true
+					tblOfGifts = tbl
+					highlightTbl = createHighlights(tblOfGifts)
+					if #giftCFrames2 > #tblOfGifts then
+						for i = 1, #giftCFrames2 - #tblOfGifts do
+							giftCFrames2[#giftCFrames2 - i] = nil
+						end
+					end
+					tblGiftsObjSpace = {}
+					tblGiftsCFStore = {}
+					OBBPartCFStore = OBBPartCFrame
+					for i, gift in ipairs(tblOfGifts) do
+						gift = gift:FindFirstChild("Handle")
+						table.insert(tblGiftsObjSpace, OBBPart.CFrame:ToObjectSpace(gift.CFrame))
+					end
+					for i, gift in ipairs(tblOfGifts) do
+						gift = gift:FindFirstChild("Handle")
+						table.insert(tblGiftsCFStore, gift.CFrame)
+					end
+				end
+				holdingDownClick = false
+				selectionBoxFrm.Visible = false
+			else
+				arePartsSelected = false
+				holdingDownClick = false
+				selectionBoxFrm.Visible = false
+			end
+		end
+	end
+end
+
+buildButton.Activated:Connect(function(input)
+	if highlightTbl then
+		for _, highlight in highlightTbl do
+			highlight:Destroy()
+			highlight = nil
+		end
+	end
+	highlightTbl = {}
+	giftRescaled = 1
+	if heartbeatConnection then
+		heartbeatConnection:Disconnect()
+		heartbeatConnection = nil
+	end
+	AGSConnection = RunService.Heartbeat:Connect(function()
+		ContextActionService:BindAction("AGS", adjustGiftSize, false, Enum.KeyCode.Up, Enum.KeyCode.Down)
+	end)
+	ContextActionService:BindAction("Placement", placingGift, false, Enum.KeyCode.P)
+	ContextActionService:UnbindAction("SelectionBox")
+	ContextActionService:UnbindAction("DraggingBox")
+	if OBBPart then
+		OBBPart:Destroy()
+		OBBPart = nil
+	end
+	if not (newGift or newHighlight) then
+		newGift, newHighlight = createNewGift()
+		activated = RunService:BindToRenderStep("PBRS", Enum.RenderPriority.Camera.Value, placementBindToRenderStep)
+	end
+end)
+
+selectButton.Activated:Connect(function(input)
+	heartbeatConnection = RunService.Heartbeat:Connect(hearbeatSelectionBox)
+	if AGSConnection then
+		ContextActionService:UnbindAction("AGS")
+		AGSConnection:Disconnect()
+		AGSConnection = nil
+	end
+	ContextActionService:UnbindAction("Placement")
+	ContextActionService:BindAction("SelectionBox", selectionBox, false, Enum.UserInputType.MouseButton1)
+	ContextActionService:BindAction("DraggingBox", draggingGifts, false, Enum.KeyCode.H)
+	if not (OBBPart) then
+		OBBPart = createOBB(OBBFolder)
+	end
+	if newGift and newHighlight then
+		RunService:UnbindFromRenderStep("PBRS")
+		newGift:Destroy()
+		newHighlight:Destroy()
+		newGift = nil
+		newHighlight = nil
+	end
+end)
