@@ -71,6 +71,7 @@ local function createNewGift()
 	return handle, newHighlight
 end
 
+--The function below creates a bounding box, overlapping all possible parts inside of the table in object space relative to the desired orientation
 local function OverlappingBoundingBoxes(orientation, giftsTbl : {Instance?}) : (Vector3, CFrame)
 	local corners = {}
 	orientation = orientation.Rotation
@@ -100,6 +101,7 @@ local function OverlappingBoundingBoxes(orientation, giftsTbl : {Instance?}) : (
 	return giftSize, giftCF
 end
 
+--The function below takes the orthonormal of the projected raycast unit vector and the object's up vector and calculates the surface normal
 local function CrossProductNormalSurfaces(gift : BasePart, raycast : RaycastResult) : (CFrame)
 	local upVector = Vector3.new(0,1,0);
 	if raycast.Instance and raycast.Instance:IsA("BasePart") then
@@ -112,6 +114,7 @@ local function CrossProductNormalSurfaces(gift : BasePart, raycast : RaycastResu
 	return newCFrame :: CFrame
 end
 
+--Creates the gift on the server side
 local function placingGift(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin and UserInputService:IsKeyDown(Enum.KeyCode.P) then
 		if not isPlaced and giftCFrame and giftRescaled then
@@ -123,6 +126,7 @@ local function placingGift(actionName, inputState, inputObject)
 	end
 end
 
+--Heartbeat event to visualize the selection box in real time
 local function hearbeatSelectionBox()
 	if holdingDownClick then
 		local currentLocation = UserInputService:GetMouseLocation()
@@ -136,6 +140,7 @@ local function hearbeatSelectionBox()
 	end
 end
 
+--Bind to render step event to place gifts and adjust the size of the gifts in real time
 local function placementBindToRenderStep()
 	local mouseLocation = UserInputService:GetMouseLocation()
 	local mouseRay = Camera:ViewportPointToRay(mouseLocation.X, mouseLocation.Y)
@@ -164,17 +169,20 @@ local function placementBindToRenderStep()
 	end
 end
 
+--Determines how much gifts are within the selction box
 local function isOverlapping(cf : CFrame, vec0 : Vector2, vec1 : Vector2) : boolean
 	local CFrameObjectSpaceX, CFrameObjectSpaceY = Camera.CFrame:ToObjectSpace(cf).X / -Camera.CFrame:ToObjectSpace(cf).Z, Camera.CFrame:ToObjectSpace(cf).Y / -Camera.CFrame:ToObjectSpace(cf).Z
 	return (vec0.X) < CFrameObjectSpaceX and CFrameObjectSpaceX < (vec1.X) and (vec0.Y < CFrameObjectSpaceY and CFrameObjectSpaceY < vec1.Y) and Camera.CFrame:ToObjectSpace(cf).Z < 0 :: boolean
 end
 
+--The purpose of this function is to allow the selection box to be inside out
 local function Switch(vec0, vec1) : (Vector2, Vector2)
 	local min0, min1 = math.min(vec0.X, vec1.X), math.min(vec0.Y, vec1.Y)
 	local max0, max1 = math.max(vec0.X, vec1.X), math.max(vec0.Y, vec1.Y)
 	return Vector2.new(min0, min1) :: Vector2, Vector2.new(max0, max1) :: Vector2
 end
 
+--Appends all gifts to a table that is within a selection box and returns the table
 local function Select(gifts : {Instance}, vec0 : Vector3, vec1 : Vector3) : {Instance}
 	local newTbl = {}
 	local loc0 = Vector2.new(Camera.CFrame:PointToObjectSpace(vec0).X/-Camera.CFrame:PointToObjectSpace(vec0).Z,Camera.CFrame:PointToObjectSpace(vec0).Y/-Camera.CFrame:PointToObjectSpace(vec0).Z)
@@ -189,6 +197,7 @@ local function Select(gifts : {Instance}, vec0 : Vector3, vec1 : Vector3) : {Ins
 	return newTbl :: {Instance}
 end
 
+--Changes the size of the gift using arrow keys
 local function adjustGiftSize(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		if UserInputService:IsKeyDown(Enum.KeyCode.Up) then
@@ -204,6 +213,7 @@ local function adjustGiftSize(actionName, inputState, inputObject)
 	end
 end
 
+--The visual bounding box
 local function createOBB(folder)
 	local OBBPart = Instance.new("Part")
 	OBBPart.Name = "OBBPart"
@@ -216,6 +226,7 @@ local function createOBB(folder)
 	return OBBPart
 end
 
+--Indicator of whether there are collisions or not
 local function createHighlights(giftsTbl)
 	local highlightsTbl = {}
 	for _, gift in ipairs(giftsTbl) do
@@ -234,6 +245,7 @@ local function createHighlights(giftsTbl)
 	return highlightsTbl
 end
 
+--Toggle H to drag all gifts in the selection box and updates the position of every gift in the server
 local function draggingGifts(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		if UserInputService:IsKeyDown(Enum.KeyCode.H) then
@@ -315,6 +327,8 @@ local function draggingGifts(actionName, inputState, inputObject)
 	end
 end
 
+--Inspired by the selection service
+--Custom selection handles/lasso activated
 local function selectionBox(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		if inputObject.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -385,6 +399,7 @@ local function selectionBox(actionName, inputState, inputObject)
 	end
 end
 
+--Button to start placing new gifts
 buildButton.Activated:Connect(function(input)
 	if highlightTbl then
 		for _, highlight in highlightTbl do
@@ -414,6 +429,7 @@ buildButton.Activated:Connect(function(input)
 	end
 end)
 
+--Button to drag and select all gifts
 selectButton.Activated:Connect(function(input)
 	heartbeatConnection = RunService.Heartbeat:Connect(hearbeatSelectionBox)
 	if AGSConnection then
