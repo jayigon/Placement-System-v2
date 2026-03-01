@@ -1,0 +1,80 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
+local REPlacementSystem = remoteEvents:WaitForChild("REPlacementSystem")
+local REPlacementSystem2 = remoteEvents:WaitForChild("REPlacementSystem2")
+local initialRE = remoteEvents:WaitForChild("initialRE")
+local cloningRE = remoteEvents:WaitForChild("cloningRE")
+local assets = ReplicatedStorage:WaitForChild("Assets")
+local gift = assets:WaitForChild("Lua Gift")
+local players = game:GetService("Players")
+local giftsInfo = {}
+local giftFolder
+
+initialRE.OnServerEvent:Connect(function(player)
+	local giftInfo = {
+		["Player"] = player.Name,
+		["giftFolder"] = Instance.new("Folder"),
+	}
+	giftInfo["giftFolder"].Parent = workspace
+	giftInfo["giftFolder"].Name = "giftFolder"..player.Name
+	table.insert(giftsInfo, giftInfo)
+end)
+
+REPlacementSystem.OnServerEvent:Connect(function(player, newCFrame, hasCollisions, giftRescaled)
+	if not hasCollisions then
+		for i, v in ipairs(giftsInfo) do
+			if v["Player"] == player.Name then
+				giftFolder = v["giftFolder"]
+			end
+		end
+		local newGift = gift:Clone()
+		newGift.Parent = giftFolder
+		local handle = newGift.Handle
+		newGift.PrimaryPart = handle
+		newGift:PivotTo(newCFrame)
+		newGift:ScaleTo(giftRescaled)
+		handle.Anchored = true
+	else
+		print("You can not place there")
+	end
+end)
+
+REPlacementSystem2.OnServerEvent:Connect(function(player, tblOfGifts, giftCFrames2, hasCollisions2)
+	if not hasCollisions2 then
+		for i, v in ipairs(giftsInfo) do
+			if v["Player"] == player.Name then
+				giftFolder = v["giftFolder"]
+			end
+		end
+		for i, gift in ipairs(tblOfGifts) do
+			gift = gift:FindFirstChild("Handle")
+			if gift then
+				gift.CFrame = giftCFrames2[i]
+			end
+		end
+	end
+end)
+
+players.PlayerRemoving:Connect(function(player)
+	for i, v in ipairs(giftsInfo) do
+		if v["Player"] == player.Name then
+			v["giftFolder"]:Destroy()
+			table.clear(v)
+			v = {}
+		end
+	end
+end)
+
+cloningRE.OnServerEvent:Connect(function(player, gift, giftCFrame)
+	for i, v in ipairs(giftsInfo) do
+		if v["Player"] == player.Name then
+			giftFolder = v["giftFolder"]
+		end
+	end
+	local giftClone = gift:Clone()
+	giftClone.Parent = giftFolder
+	local giftCloneHandle = giftClone:FindFirstChild("Handle")
+	if giftCloneHandle then
+		giftCloneHandle.CFrame = giftCFrame
+	end
+end)
