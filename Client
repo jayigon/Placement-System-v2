@@ -28,6 +28,7 @@ selectionBoxFrm.Visible = false
 local isPlaced = false
 local hasCollisions = false
 local hasCollisions2 = false
+local shrinkGift, enlargeGift = false, false
 local selectionMode = true
 local arePartsSelected = false
 local holdingDownClick = false
