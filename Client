@@ -28,7 +28,8 @@ selectionBoxFrm.Visible = false
 local isPlaced = false
 local hasCollisions = false
 local hasCollisions2 = false
-local shrinkGift, enlargeGift = false, false
+local shrinkGift = false
+local enlargeGift = false
 local selectionMode = true
 local arePartsSelected = false
 local holdingDownClick = false
@@ -52,16 +53,22 @@ local tblOfGifts = {}
 local tblGiftsObjSpace = {}
 local tblGiftsCFStore = {}
 local highlightTbl = {}
-local giftRescaled = 1
 local clipboardGifts = {}
 local clipboardObjSpace = {}
 local clipboardCFrames = {}
 local duplicateGiftsTbl = {}
-local OBBFolder = Instance.new("Folder")
-OBBFolder.Name = "OBBSelectionFolder"
-OBBFolder.Parent = workspace
-initialRE:FireServer()
-local giftFolder = workspace:WaitForChild("giftFolder"..player.Name)
+local giftRescaled = 1
+local OBBFolder = workspace:FindFirstChild("OBBSelectionFolder")
+local giftFolder = workspace:FindFirstChild("giftFolder"..player.Name)
+if not OBBFolder then
+	OBBFolder = Instance.new("Folder")
+	OBBFolder.Name = "OBBSelectionFolder"
+	OBBFolder.Parent = workspace
+end
+if not giftFolder then
+	initialRE:FireServer()
+	giftFolder = workspace:WaitForChild("giftFolder"..player.Name)
+end
 
 local function createNewGift()
 	local newGift = gift:Clone()
@@ -319,15 +326,16 @@ local function draggingGifts(actionName, inputState, inputObject)
 					if not isPlaced then
 						isPlaced = not isPlaced
 						REPlacementSystem2:FireServer(tblOfGifts, giftCFrames2, hasCollisions2)
-						print(tblOfGifts, giftCFrames2)
 						task.wait()
 						isPlaced = not isPlaced
+						print(tblOfGifts, giftCFrames2)
 					end
 				else
 					OBBPart.CFrame = OBBPartCFStore
 					for i, gift in ipairs(tblOfGifts) do
+						gift = gift:FindFirstChild("Handle") 
 						if gift and tblGiftsCFStore[i] then
-							gift:FindFirstChild("Handle").CFrame = tblGiftsCFStore[i]
+							gift.CFrame = tblGiftsCFStore[i]
 						end	
 					end
 				end
@@ -396,10 +404,10 @@ local function cloningGifts(actionName, inputState, inputObject)
 								giftClone:Destroy()
 								giftClone = nil
 							else
-								print(clipboardGifts, clipboardCFrames)
 								cloningRE:FireServer(gift, gHandle.CFrame)
 								task.wait()
 								table.insert(duplicateGiftsTbl, giftClone)
+								print(clipboardGifts, clipboardCFrames)
 							end
 						end
 						for _, duplicate in ipairs(duplicateGiftsTbl) do
@@ -420,8 +428,9 @@ local function multiSelect(actionName, inputState, inputObject)
 			if hasCollisions2 then
 				OBBPart.CFrame = OBBPartCFStore
 				for i, gift in ipairs(tblOfGifts) do
+					gift = gift:FindFirstChild("Handle")
 					if gift and tblGiftsCFStore[i] then
-						gift:FindFirstChild("Handle").CFrame = tblGiftsCFStore[i]
+						gift.CFrame = tblGiftsCFStore[i]
 					end	
 				end
 			end
@@ -509,8 +518,9 @@ local function selectionBox(actionName, inputState, inputObject)
 			if hasCollisions2 then
 				OBBPart.CFrame = OBBPartCFStore
 				for i, gift in ipairs(tblOfGifts) do
+					gift = gift:FindFirstChild("Handle")
 					if gift and tblGiftsCFStore[i] then
-						gift:FindFirstChild("Handle").CFrame = tblGiftsCFStore[i]
+						gift.CFrame = tblGiftsCFStore[i]
 					end	
 				end
 			end
@@ -584,6 +594,10 @@ local function selectionBox(actionName, inputState, inputObject)
 					holdingDownClick = false
 					selectionBoxFrm.Visible = false
 				end
+			else
+				arePartsSelected = false
+				holdingDownClick = false
+				selectionBoxFrm.Visible = false
 			end
 		end
 	end
@@ -666,8 +680,8 @@ selectButton.Activated:Connect(function(input)
 	selectionMode = not selectionMode
 	if tblOfGifts then
 		for _, gift in ipairs(tblOfGifts) do
+			gift = gift:FindFirstChild("Handle")
 			if gift then
-				gift = gift:FindFirstChild("Handle")
 				gift.CanCollide = true
 				gift.Transparency = 0
 				gift.Reflectance = 0
