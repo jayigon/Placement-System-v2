@@ -203,11 +203,13 @@ local function placementBindToRenderStep()
 	end
 end
 
+--Projecting from a selection box in two dimensional space to a bounding box in three dimensional space 
 local function isOverlapping(cf : CFrame, vec0 : Vector2, vec1 : Vector2) : boolean
 	local CFrameObjectSpaceX, CFrameObjectSpaceY = Camera.CFrame:ToObjectSpace(cf).X / -Camera.CFrame:ToObjectSpace(cf).Z, Camera.CFrame:ToObjectSpace(cf).Y / -Camera.CFrame:ToObjectSpace(cf).Z
 	return (vec0.X) < CFrameObjectSpaceX and CFrameObjectSpaceX < (vec1.X) and (vec0.Y < CFrameObjectSpaceY and CFrameObjectSpaceY < vec1.Y) and Camera.CFrame:ToObjectSpace(cf).Z < 0 :: boolean
 end
 
+--To prevent the selection box from inverting itself, the maximum and minimum Vector2 values are swapped
 local function Switch(vec0, vec1) : (Vector2, Vector2)
 	local min0, min1 = math.min(vec0.X, vec1.X), math.min(vec0.Y, vec1.Y)
 	local max0, max1 = math.max(vec0.X, vec1.X), math.max(vec0.Y, vec1.Y)
