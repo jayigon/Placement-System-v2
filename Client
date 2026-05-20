@@ -59,11 +59,9 @@ local clipboardObjSpace = {}
 local clipboardCFrames = {}
 local duplicateGiftsTbl = {}
 local enumKeyCodeTbl = {
-							["C"] = Enum.KeyCode.C, ["V"] = Enum.KeyCode.V,
-							["Shift"] = Enum.KeyCode.LeftShift, ["Ctrl"] = Enum.KeyCode.LeftControl,
-							["P"] = Enum.KeyCode.P, ["H"] = Enum.KeyCode.H,
-							["ArrowUp"] = Enum.KeyCode.Up, ["ArrowDown"] = Enum.KeyCode.Down 
-						}
+	["C"] = Enum.KeyCode.C, ["V"] = Enum.KeyCode.V, ["Shift"] = Enum.KeyCode.LeftShift, ["Ctrl"] = Enum.KeyCode.LeftControl, 
+	["P"] = Enum.KeyCode.P, ["H"] = Enum.KeyCode.H, ["ArrowUp"] = Enum.KeyCode.Up, ["ArrowDown"] = Enum.KeyCode.Down
+}
 local giftRescaled = 1
 local TRANSPARENCY = .65
 local raycastMagnitude = 1 * math.pow(10, 6)
