@@ -58,6 +58,12 @@ local clipboardGifts = {}
 local clipboardObjSpace = {}
 local clipboardCFrames = {}
 local duplicateGiftsTbl = {}
+local enumKeyCodeTbl = {
+							["C"] = Enum.KeyCode.C, ["V"] = Enum.KeyCode.V,
+							["Shift"] = Enum.KeyCode.LeftShift, ["Ctrl"] = Enum.KeyCode.LeftControl,
+							["P"] = Enum.KeyCode.P, ["H"] = Enum.KeyCode.H,
+							["ArrowUp"] = Enum.KeyCode.Up, ["ArrowDown"] = Enum.KeyCode.Down 
+						}
 local giftRescaled = 1
 local TRANSPARENCY = .65
 local raycastMagnitude = 1 * math.pow(10, 6)
@@ -129,7 +135,6 @@ local function OverlappingBoundingBoxes(orientation, giftsTbl : {Instance?}) : (
 	return giftSize, giftCF
 end
 
---Calculates the surface normal relative to the gift's orientation (the vector product of the projected raycast unit vector and the gift's up vector in object space)
 local function CrossProductNormalSurfaces(gift : BasePart, raycast : RaycastResult) : (CFrame)
 	local upVector = Vector3.new(0,1,0);
 	if raycast.Instance and raycast.Instance:IsA("BasePart") then
@@ -143,7 +148,7 @@ local function CrossProductNormalSurfaces(gift : BasePart, raycast : RaycastResu
 end
 
 local function placingGift(actionName, inputState, inputObject)
-	if inputState == Enum.UserInputState.Begin and UserInputService:IsKeyDown(Enum.KeyCode.P) then
+	if inputState == Enum.UserInputState.Begin and UserInputService:IsKeyDown(enumKeyCodeTbl["P"]) then
 		if not isPlaced and giftCFrame and giftRescaled then
 			isPlaced = not isPlaced
 			REPlacementSystem:FireServer(giftCFrame, hasCollisions, giftRescaled)
@@ -221,10 +226,10 @@ end
 
 local function adjustGiftSize(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
-		if UserInputService:IsKeyDown(Enum.KeyCode.Up) then
+		if UserInputService:IsKeyDown(enumKeyCodeTbl["ArrowUp"]) then
 			enlargeGift = true
 		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.Down) then
+		if UserInputService:IsKeyDown(enumKeyCodeTbl["ArrowDown"]) then
 			shrinkGift = true	
 		end
 	end
@@ -270,7 +275,7 @@ end
 
 local function draggingGifts(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
-		if UserInputService:IsKeyDown(Enum.KeyCode.H) then
+		if UserInputService:IsKeyDown(enumKeyCodeTbl["H"]) then
 			if not enableDraggingSystem then
 				local function draggingRenderStep()
 					if arePartsSelected and OBBPart then
@@ -360,8 +365,8 @@ end
 
 local function cloningGifts(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
-		if (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)) then
-			if UserInputService:IsKeyDown(Enum.KeyCode.C) then
+		if (UserInputService:IsKeyDown(enumKeyCodeTbl["Shift"]) or UserInputService:IsKeyDown(enumKeyCodeTbl["Ctrl"])) then
+			if UserInputService:IsKeyDown(enumKeyCodeTbl["C"]) then
 				if #tblOfGifts > 0 then
 					clipboardGifts = {}
 					table.clear(clipboardGifts)
@@ -373,7 +378,7 @@ local function cloningGifts(actionName, inputState, inputObject)
 					end
 				end
 			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.V) then
+			if UserInputService:IsKeyDown(enumKeyCodeTbl["V"]) then
 				if OBBPart and #clipboardGifts > 0 and clipboardGifts then
 					local mouseLocation = UserInputService:GetMouseLocation()
 					local mouseRay = Camera:ViewportPointToRay(mouseLocation.X, mouseLocation.Y)
@@ -467,7 +472,7 @@ local function multiSelect(actionName, inputState, inputObject)
 	end
 	if inputState == Enum.UserInputState.End then
 		if inputObject.UserInputType == Enum.UserInputType.MouseButton1 then
-			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+			if UserInputService:IsKeyDown(enumKeyCodeTbl["Shift"]) or UserInputService:IsKeyDown(enumKeyCodeTbl["Ctrl"]) then
 				local mouseLocation = UserInputService:GetMouseLocation()
 				local mouseRay = Camera:ViewportPointToRay(mouseLocation.X, mouseLocation.Y)
 				if OBBPart then
@@ -562,10 +567,10 @@ local function selectionBox(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.End then
 		if inputObject.UserInputType == Enum.UserInputType.MouseButton1 then	
 			local unitRay0 =  Camera:ScreenPointToRay(previousLocation.X, previousLocation.Y)
-			local result0 = workspace:Raycast(unitRay0.Origin, unitRay0.Direction * 1000)
+			local result0 = workspace:Raycast(unitRay0.Origin, unitRay0.Direction * raycastMagnitude)
 			local currentLocation = Vector2.new(inputObject.Position.X, inputObject.Position.Y)
 			local unitRay1 =  Camera:ScreenPointToRay(currentLocation.X, currentLocation.Y)
-			local result1 = workspace:Raycast(unitRay1.Origin, unitRay1.Direction * 1000)
+			local result1 = workspace:Raycast(unitRay1.Origin, unitRay1.Direction * raycastMagnitude)
 			if result0 and result1 then
 				if OBBPart then
 					local tbl = Select(giftFolder:GetChildren(), result0.Position, result1.Position)
@@ -647,9 +652,9 @@ buildButton.Activated:Connect(function(input)
 		heartbeatConnection = nil
 	end
 	AGSConnection = RunService.Heartbeat:Connect(function()
-		ContextActionService:BindAction("AGS", adjustGiftSize, false, Enum.KeyCode.Up, Enum.KeyCode.Down)
+		ContextActionService:BindAction("AGS", adjustGiftSize, false, enumKeyCodeTbl["ArrowUp"], enumKeyCodeTbl["ArrowDown"])
 	end)
-	ContextActionService:BindAction("Placement", placingGift, false, Enum.KeyCode.P)
+	ContextActionService:BindAction("Placement", placingGift, false, enumKeyCodeTbl["P"])
 	ContextActionService:UnbindAction("SelectionBox")
 	ContextActionService:UnbindAction("DraggingBox")
 	ContextActionService:UnbindAction("MultiSelect")
@@ -678,12 +683,12 @@ selectButton.Activated:Connect(function(input)
 		ContextActionService:UnbindAction("MultiSelect")
 		selectModeLbl.Text = "Selection Mode:".." Selection Box"
 	else
-		ContextActionService:BindAction("MultiSelect", multiSelect, false, Enum.KeyCode.LeftShift, Enum.UserInputType.MouseButton1, Enum.KeyCode.LeftControl)
+		ContextActionService:BindAction("MultiSelect", multiSelect, false, enumKeyCodeTbl["Shift"], Enum.UserInputType.MouseButton1, enumKeyCodeTbl["Ctrl"])
 		ContextActionService:UnbindAction("SelectionBox")
 		selectModeLbl.Text = "Selection Mode:".." Multi Select"
 	end
-	ContextActionService:BindAction("DraggingBox", draggingGifts, false, Enum.KeyCode.H)
-	ContextActionService:BindAction("CopyGifts", cloningGifts, false, Enum.KeyCode.C, Enum.KeyCode.V, Enum.KeyCode.LeftShift, Enum.KeyCode.LeftControl)
+	ContextActionService:BindAction("DraggingBox", draggingGifts, false, enumKeyCodeTbl["H"])
+	ContextActionService:BindAction("CopyGifts", cloningGifts, false, enumKeyCodeTbl["C"], enumKeyCodeTbl["V"], enumKeyCodeTbl["Shift"], enumKeyCodeTbl["Ctrl"])
 	if not (OBBPart) then
 		OBBPart = createOBB(OBBFolder)
 	end
